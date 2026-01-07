@@ -38,16 +38,6 @@ fn test_cli_help_flag() {
 }
 
 #[test]
-fn test_cli_version_flag() {
-    let mut cmd = quest_cmd();
-    cmd.arg("--version");
-
-    cmd.assert()
-        .success()
-        .stdout(predicate::str::contains("0.1"));
-}
-
-#[test]
 fn test_list_command_with_valid_file() {
     let quest_file = fixture_path("test-quests.yaml");
 

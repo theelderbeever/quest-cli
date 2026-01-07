@@ -315,7 +315,7 @@ impl QuestCli {
         }
 
         // 2. Merge quest options (including body) with CLI options
-        quest_options.merge_with(&cli_options);
+        quest_options.merge_with(&cli_options)?;
 
         // 3. Build the client with merged options
         let client = QuestClientBuilder::new().apply(&quest_options)?.build()?;
@@ -722,22 +722,24 @@ pub struct CompressionOptions {
 
 // Merge implementations for combining quest options with CLI options
 impl RequestOptions {
-    pub fn merge_with(&mut self, cli_options: &RequestOptions) {
-        self.authorization.merge_with(&cli_options.authorization);
-        self.headers.merge_with(&cli_options.headers);
-        self.params.merge_with(&cli_options.params);
-        self.body.merge_with(&cli_options.body);
-        self.timeouts.merge_with(&cli_options.timeouts);
-        self.redirects.merge_with(&cli_options.redirects);
-        self.tls.merge_with(&cli_options.tls);
-        self.proxy.merge_with(&cli_options.proxy);
-        self.output.merge_with(&cli_options.output);
-        self.compression.merge_with(&cli_options.compression);
+    pub fn merge_with(&mut self, cli_options: &RequestOptions) -> Result<&Self> {
+        self.authorization.merge_with(&cli_options.authorization)?;
+        self.headers.merge_with(&cli_options.headers)?;
+        self.params.merge_with(&cli_options.params)?;
+        self.body.merge_with(&cli_options.body)?;
+        self.timeouts.merge_with(&cli_options.timeouts)?;
+        self.redirects.merge_with(&cli_options.redirects)?;
+        self.tls.merge_with(&cli_options.tls)?;
+        self.proxy.merge_with(&cli_options.proxy)?;
+        self.output.merge_with(&cli_options.output)?;
+        self.compression.merge_with(&cli_options.compression)?;
+
+        Ok(self)
     }
 }
 
 impl AuthOptions {
-    pub fn merge_with(&mut self, cli: &AuthOptions) {
+    pub fn merge_with(&mut self, cli: &AuthOptions) -> Result<&Self> {
         if cli.auth.is_some() {
             self.auth = cli.auth.clone();
         }
@@ -747,11 +749,13 @@ impl AuthOptions {
         if cli.bearer.is_some() {
             self.bearer = cli.bearer.clone();
         }
+
+        Ok(self)
     }
 }
 
 impl HeaderOptions {
-    pub fn merge_with(&mut self, cli: &HeaderOptions) {
+    pub fn merge_with(&mut self, cli: &HeaderOptions) -> Result<&Self> {
         // Collections: simple concatenation
         self.header.extend(cli.header.clone());
 
@@ -768,52 +772,90 @@ impl HeaderOptions {
         if cli.accept.is_some() {
             self.accept = cli.accept.clone();
         }
+
+        Ok(self)
     }
 }
 
 impl ParamOptions {
-    pub fn merge_with(&mut self, cli: &ParamOptions) {
+    pub fn merge_with(&mut self, cli: &ParamOptions) -> Result<&Self> {
         // Use BTreeSet to deduplicate based on entire "key=value" string
         // This allows foo=bar and foo=different to coexist, but deduplicates exact matches
-        use std::collections::BTreeSet;
+        use std::collections::{BTreeMap, BTreeSet};
 
-        let mut param_set: BTreeSet<String> = BTreeSet::new();
+        let mut params: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
 
-        // Add quest file params
-        param_set.extend(self.param.iter().cloned());
+        for param in &self.param {
+            let (key, value) = param.split_once("=").ok_or_else(|| anyhow::anyhow!(
+                "Invalid parameter format: '{}'. Expected format: 'key=value' (must contain an equals sign)",
+                param
+            ))?;
 
-        // Add CLI params (deduplicates automatically)
-        param_set.extend(cli.param.iter().cloned());
+            params
+                .entry(key.trim().to_string())
+                .or_default()
+                .insert(value.trim().to_string());
+        }
+
+        let mut cli_params: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
+
+        for param in &cli.param {
+            let (key, value) = param.split_once("=").ok_or_else(|| anyhow::anyhow!(
+                "Invalid parameter format: '{}'. Expected format: 'key=value' (must contain an equals sign)",
+                param
+            ))?;
+
+            cli_params
+                .entry(key.trim().to_string())
+                .or_default()
+                .insert(value.trim().to_string());
+        }
+
+        params.extend(cli_params);
 
         // Convert back to Vec (sorted order from BTreeSet)
-        self.param = param_set.into_iter().collect();
+        self.param = params
+            .into_iter()
+            .flat_map(|(key, values)| {
+                values
+                    .into_iter()
+                    .map(|value| format!("{key}={value}"))
+                    .collect::<Vec<_>>()
+            })
+            .collect();
+
+        Ok(self)
     }
 }
 
 impl TimeoutOptions {
-    pub fn merge_with(&mut self, cli: &TimeoutOptions) {
+    pub fn merge_with(&mut self, cli: &TimeoutOptions) -> Result<&Self> {
         if cli.timeout.is_some() {
             self.timeout = cli.timeout;
         }
         if cli.connect_timeout.is_some() {
             self.connect_timeout = cli.connect_timeout;
         }
+
+        Ok(self)
     }
 }
 
 impl RedirectOptions {
-    pub fn merge_with(&mut self, cli: &RedirectOptions) {
+    pub fn merge_with(&mut self, cli: &RedirectOptions) -> Result<&Self> {
         if cli.location {
             self.location = cli.location;
         }
         if cli.max_redirects.is_some() {
             self.max_redirects = cli.max_redirects;
         }
+
+        Ok(self)
     }
 }
 
 impl TlsOptions {
-    pub fn merge_with(&mut self, cli: &TlsOptions) {
+    pub fn merge_with(&mut self, cli: &TlsOptions) -> Result<&Self> {
         if cli.insecure {
             self.insecure = cli.insecure;
         }
@@ -826,22 +868,26 @@ impl TlsOptions {
         if cli.cacert.is_some() {
             self.cacert = cli.cacert.clone();
         }
+
+        Ok(self)
     }
 }
 
 impl ProxyOptions {
-    pub fn merge_with(&mut self, cli: &ProxyOptions) {
+    pub fn merge_with(&mut self, cli: &ProxyOptions) -> Result<&Self> {
         if cli.proxy.is_some() {
             self.proxy = cli.proxy.clone();
         }
         if cli.proxy_auth.is_some() {
             self.proxy_auth = cli.proxy_auth.clone();
         }
+
+        Ok(self)
     }
 }
 
 impl OutputOptions {
-    pub fn merge_with(&mut self, cli: &OutputOptions) {
+    pub fn merge_with(&mut self, cli: &OutputOptions) -> Result<&Self> {
         if cli.output.is_some() {
             self.output = cli.output.clone();
         }
@@ -854,24 +900,30 @@ impl OutputOptions {
         if cli.simple {
             self.simple = cli.simple;
         }
+
+        Ok(self)
     }
 }
 
 impl CompressionOptions {
-    pub fn merge_with(&mut self, cli: &CompressionOptions) {
+    pub fn merge_with(&mut self, cli: &CompressionOptions) -> Result<&Self> {
         if cli.compressed {
             self.compressed = cli.compressed;
         }
+
+        Ok(self)
     }
 }
 
 impl BodyOptions {
-    pub fn merge_with(&mut self, cli: &BodyOptions) {
+    pub fn merge_with(&mut self, cli: &BodyOptions) -> Result<&Self> {
         // Body options are mutually exclusive (clap group)
         // If CLI provides any body option, it completely replaces quest body
         if cli.json.is_some() | !cli.form.is_empty() | cli.raw.is_some() | cli.binary.is_some() {
             *self = cli.clone();
         }
+
         // If CLI has no body options, keep quest body unchanged
+        Ok(self)
     }
 }
