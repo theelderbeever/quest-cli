@@ -450,3 +450,139 @@ fn test_env_file_loading() {
 
     cmd.assert().success();
 }
+
+// ============================================================================
+// Parameter Handling Tests - Added to fix duplicate parameter bug
+// ============================================================================
+
+#[test]
+fn test_quest_go_with_cli_params() {
+    let quest_content = r#"
+quests:
+  test-params:
+    method: get
+    url: https://httpbin.org/get
+    params:
+      - foo=bar
+      - baz=qux
+"#;
+
+    let (_temp_dir, quest_file) = create_temp_quest_file(quest_content);
+
+    let mut cmd = quest_cmd();
+    cmd.arg("go")
+        .arg("test-params")
+        .arg("--file")
+        .arg(&quest_file)
+        .arg("--param")
+        .arg("hello=world");
+
+    let output = cmd.assert().success();
+    let stdout = String::from_utf8(output.get_output().stdout.clone()).unwrap();
+
+    // Parse the JSON response from httpbin
+    let json: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+
+    // Check the args field directly - httpbin returns query params here
+    let args = json["args"].as_object().unwrap();
+
+    // Each param should appear exactly once as a key in args
+    assert_eq!(args.get("foo").unwrap().as_str().unwrap(), "bar");
+    assert_eq!(args.get("baz").unwrap().as_str().unwrap(), "qux");
+    assert_eq!(args.get("hello").unwrap().as_str().unwrap(), "world");
+
+    // Verify exactly 3 params (no duplicates)
+    assert_eq!(args.len(), 3, "Should have exactly 3 parameters");
+}
+
+#[test]
+fn test_quest_go_with_multiple_cli_params() {
+    let quest_content = r#"
+quests:
+  test-multi-params:
+    method: get
+    url: https://httpbin.org/get
+    params:
+      - foo=bar
+"#;
+
+    let (_temp_dir, quest_file) = create_temp_quest_file(quest_content);
+
+    let mut cmd = quest_cmd();
+    cmd.arg("go")
+        .arg("test-multi-params")
+        .arg("--file")
+        .arg(&quest_file)
+        .arg("--param")
+        .arg("a=1")
+        .arg("--param")
+        .arg("b=2");
+
+    let output = cmd.assert().success();
+    let stdout = String::from_utf8(output.get_output().stdout.clone()).unwrap();
+
+    // Parse the JSON response from httpbin
+    let json: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+    let args = json["args"].as_object().unwrap();
+
+    // Each param should appear exactly once
+    assert_eq!(args.get("foo").unwrap().as_str().unwrap(), "bar");
+    assert_eq!(args.get("a").unwrap().as_str().unwrap(), "1");
+    assert_eq!(args.get("b").unwrap().as_str().unwrap(), "2");
+
+    // Verify exactly 3 params
+    assert_eq!(args.len(), 3, "Should have exactly 3 parameters");
+}
+
+#[test]
+fn test_direct_get_with_params() {
+    let mut cmd = quest_cmd();
+    cmd.arg("get")
+        .arg("https://httpbin.org/get")
+        .arg("--param")
+        .arg("test=value");
+
+    let output = cmd.assert().success();
+    let stdout = String::from_utf8(output.get_output().stdout.clone()).unwrap();
+
+    // Parse the JSON response from httpbin
+    let json: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+    let args = json["args"].as_object().unwrap();
+
+    // Verify test=value appears exactly once
+    assert_eq!(args.get("test").unwrap().as_str().unwrap(), "value");
+    assert_eq!(args.len(), 1, "Should have exactly 1 parameter");
+}
+
+#[test]
+fn test_intentional_duplicate_params() {
+    let quest_content = r#"
+quests:
+  test-duplicate:
+    method: get
+    url: https://httpbin.org/get
+"#;
+
+    let (_temp_dir, quest_file) = create_temp_quest_file(quest_content);
+
+    let mut cmd = quest_cmd();
+    cmd.arg("go")
+        .arg("test-duplicate")
+        .arg("--file")
+        .arg(&quest_file)
+        .arg("--param")
+        .arg("tag=foo")
+        .arg("--param")
+        .arg("tag=bar");
+
+    let output = cmd.assert().success();
+    let stdout = String::from_utf8(output.get_output().stdout.clone()).unwrap();
+
+    // When user explicitly passes -p tag=foo -p tag=bar, both should be present
+    assert!(stdout.contains("\"tag\""));
+
+    // httpbin returns arrays when same key appears multiple times
+    // We expect both "foo" and "bar" to appear
+    assert!(stdout.contains("\"foo\""));
+    assert!(stdout.contains("\"bar\""));
+}

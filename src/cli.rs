@@ -143,25 +143,12 @@ impl QuestCli {
                     .with_context(|| format!("Failed to load quest file: {}", file.display()))?;
 
                 // 2. Find quest by name
-                let mut quest_command = quest_file
+                let quest_command = quest_file
                     .get(&name)
                     .ok_or_else(|| anyhow::anyhow!("Quest '{}' not found.", name))?
                     .clone();
 
-                // 3. Merge with CLI options (CLI overrides quest)
-                match &mut quest_command {
-                    QuestCommand::Get { options: qopts, .. }
-                    | QuestCommand::Delete { options: qopts, .. } => {
-                        qopts.merge_with(&options);
-                    }
-                    QuestCommand::Post { options: qopts, .. }
-                    | QuestCommand::Put { options: qopts, .. }
-                    | QuestCommand::Patch { options: qopts, .. } => {
-                        qopts.merge_with(&options);
-                    }
-                }
-
-                // 4. Execute the quest command
+                // 3. Execute the quest command (merging happens in execute_quest_command)
                 log::info!("Executing quest '{}' from {}", name, file.display());
                 Self::execute_quest_command(options, quest_command)
             }
@@ -784,8 +771,20 @@ impl HeaderOptions {
 
 impl ParamOptions {
     pub fn merge_with(&mut self, cli: &ParamOptions) {
-        // Concatenate parameters
-        self.param.extend(cli.param.clone());
+        // Use BTreeSet to deduplicate based on entire "key=value" string
+        // This allows foo=bar and foo=different to coexist, but deduplicates exact matches
+        use std::collections::BTreeSet;
+
+        let mut param_set: BTreeSet<String> = BTreeSet::new();
+
+        // Add quest file params
+        param_set.extend(self.param.iter().cloned());
+
+        // Add CLI params (deduplicates automatically)
+        param_set.extend(cli.param.iter().cloned());
+
+        // Convert back to Vec (sorted order from BTreeSet)
+        self.param = param_set.into_iter().collect();
     }
 }
 
