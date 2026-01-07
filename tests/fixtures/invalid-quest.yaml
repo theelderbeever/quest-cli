@@ -1,0 +1,6 @@
+quests:
+  missing-method:
+    url: https://httpbin.org/get
+
+  missing-url:
+    method: get

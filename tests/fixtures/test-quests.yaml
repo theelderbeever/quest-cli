@@ -1,0 +1,62 @@
+quests:
+  simple-get:
+    method: get
+    url: https://httpbin.org/get
+
+  get-with-headers:
+    method: get
+    url: https://httpbin.org/get
+    headers:
+      - "X-Custom-Header: test-value"
+      - "X-Another: another-value"
+    user_agent: TestAgent/1.0
+    accept: application/json
+
+  get-with-params:
+    method: get
+    url: https://httpbin.org/get
+    params:
+      - "foo=bar"
+      - "baz=qux"
+
+  get-with-auth:
+    method: get
+    url: https://httpbin.org/basic-auth/user/pass
+    basic: user:pass
+
+  post-with-json:
+    method: post
+    url: https://httpbin.org/post
+    json: '{"name": "test", "value": 123}'
+    content_type: application/json
+
+  composed-url:
+    method: get
+    base_url: https://httpbin.org
+    path: /status/200
+
+  with-timeout:
+    method: get
+    url: https://httpbin.org/delay/1
+    timeout: 5s
+    connect_timeout: 2s
+
+  with-redirects:
+    method: get
+    url: https://httpbin.org/redirect/2
+    location: true
+    max_redirects: 5
+
+  delete-request:
+    method: delete
+    url: https://httpbin.org/delete
+
+  put-with-body:
+    method: put
+    url: https://httpbin.org/put
+    raw: "raw body content"
+
+  patch-with-body:
+    method: patch
+    url: https://httpbin.org/patch
+    json: '{"updated": true}'

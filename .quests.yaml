@@ -1,0 +1,380 @@
+# Quest Configuration Examples
+# This file demonstrates all the features and capabilities of Quest
+
+# ============================================================================
+# Reusable Defaults with YAML Anchors
+# ============================================================================
+
+# JSONPlaceholder API defaults (free fake API for testing)
+x-jsonplaceholder: &jsonplaceholder
+  base_url: https://jsonplaceholder.typicode.com
+  accept: application/json
+  timeout: 30s
+  user_agent: quest-cli/0.1.0
+
+# HTTPBin defaults (request inspection service)
+x-httpbin: &httpbin
+  base_url: https://httpbin.org
+  accept: application/json
+  timeout: 20s
+  user_agent: quest-cli/0.1.0
+
+# Production API defaults (example with auth)
+x-production: &production
+  base_url: ${API_URL:-https://api.example.com}
+  bearer: "${API_TOKEN}"
+  accept: application/json
+  timeout: 30s
+  header:
+    - "X-API-Version: v1"
+
+# ============================================================================
+# Quest Definitions
+# ============================================================================
+
+quests:
+  # ==========================================================================
+  # JSONPlaceholder Examples - Simple GET Requests
+  # ==========================================================================
+
+  get-users:
+    <<: *jsonplaceholder
+    method: get
+    path: /users
+    # Returns list of all users
+
+  get-user:
+    <<: *jsonplaceholder
+    method: get
+    path: /users/1
+    # Returns single user with id=1
+
+  get-posts:
+    <<: *jsonplaceholder
+    method: get
+    path: /posts
+    # Returns all posts
+
+  get-user-posts:
+    <<: *jsonplaceholder
+    method: get
+    path: /posts
+    params:
+      - userId=1
+    # Returns posts by user with id=1
+
+  # ==========================================================================
+  # Query Parameters Examples
+  # ==========================================================================
+
+  search-posts:
+    <<: *jsonplaceholder
+    method: get
+    path: /posts
+    params:
+      - userId=1
+      - _limit=5
+    # Limit results to 5 posts from user 1
+
+  filter-comments:
+    <<: *jsonplaceholder
+    method: get
+    path: /comments
+    param: # 'param' and 'params' are interchangeable
+      - postId=1
+      - _limit=3
+    # Get first 3 comments for post 1
+
+  # ==========================================================================
+  # POST Requests with JSON Body
+  # ==========================================================================
+
+  create-post:
+    <<: *jsonplaceholder
+    method: post
+    path: /posts
+    json: |
+      {
+        "title": "My New Post",
+        "body": "This is the content of my post.",
+        "userId": 1
+      }
+    # Creates a new post (simulated)
+
+  create-user:
+    <<: *jsonplaceholder
+    method: post
+    path: /users
+    json: '{"name": "John Doe", "email": "john@example.com", "username": "johndoe"}'
+    # Creates a new user with inline JSON
+
+  create-comment:
+    <<: *jsonplaceholder
+    method: post
+    path: /comments
+    json: |
+      {
+        "postId": 1,
+        "name": "Great post!",
+        "email": "commenter@example.com",
+        "body": "This is a very insightful post. Thanks for sharing!"
+      }
+
+  # ==========================================================================
+  # PUT/PATCH Requests - Updates
+  # ==========================================================================
+
+  update-post:
+    <<: *jsonplaceholder
+    method: put
+    path: /posts/1
+    json: |
+      {
+        "id": 1,
+        "title": "Updated Title",
+        "body": "Updated content",
+        "userId": 1
+      }
+    # Full update of post 1
+
+  patch-post:
+    <<: *jsonplaceholder
+    method: patch
+    path: /posts/1
+    json: '{"title": "Partially Updated Title"}'
+    # Partial update of post 1
+
+  # ==========================================================================
+  # DELETE Requests
+  # ==========================================================================
+
+  delete-post:
+    <<: *jsonplaceholder
+    method: delete
+    path: /posts/1
+    # Deletes post with id=1 (simulated)
+
+  # ==========================================================================
+  # HTTPBin Examples - Request Inspection & Testing
+  # ==========================================================================
+
+  httpbin-get:
+    <<: *httpbin
+    method: get
+    path: /get
+    params:
+      - foo=bar
+      - baz=qux
+    # Returns the GET request details including query params
+
+  httpbin-post:
+    <<: *httpbin
+    method: post
+    path: /post
+    json: '{"test": "data", "number": 42}'
+    # Returns the POST request details including body
+
+  httpbin-headers:
+    <<: *httpbin
+    method: get
+    path: /headers
+    header:
+      - "X-Custom-Header: custom-value"
+      - "X-Request-ID: 12345"
+    # Returns all headers sent in the request
+
+  httpbin-auth:
+    method: get
+    url: https://httpbin.org/basic-auth/user/passwd
+    basic: user:passwd
+    # Tests basic authentication
+
+  httpbin-bearer:
+    method: get
+    url: https://httpbin.org/bearer
+    bearer: "my-secret-token"
+    # Tests bearer token authentication
+
+  httpbin-delay:
+    <<: *httpbin
+    method: get
+    path: /delay/2
+    timeout: 5s
+    # Returns after 2 second delay (tests timeout handling)
+
+  httpbin-status:
+    <<: *httpbin
+    method: get
+    path: /status/404
+    # Returns specified HTTP status code
+
+  httpbin-redirect:
+    <<: *httpbin
+    method: get
+    path: /redirect/3
+    location: true
+    max_redirects: 5
+    # Tests redirect following (3 redirects)
+
+  httpbin-cookies:
+    <<: *httpbin
+    method: get
+    path: /cookies/set
+    params:
+      - sessionid=abc123
+      - userid=42
+    location: true
+    # Sets cookies and returns them
+
+  httpbin-image:
+    <<: *httpbin
+    method: get
+    path: /image/png
+    output: test-image.png
+    # Downloads a PNG image
+
+  httpbin-json:
+    <<: *httpbin
+    method: get
+    path: /json
+    # Returns sample JSON data
+
+  httpbin-user-agent:
+    <<: *httpbin
+    method: get
+    path: /user-agent
+    user_agent: "MyCustomAgent/1.0"
+    # Returns the User-Agent string
+
+  # ==========================================================================
+  # Environment Variables Examples
+  # ==========================================================================
+
+  env-example:
+    method: get
+    url: ${BASE_URL:-https://jsonplaceholder.typicode.com}/users
+    bearer: "${API_TOKEN}"
+    timeout: ${TIMEOUT:-30s}
+    # Uses environment variables with default values
+    # Set in .env file or environment:
+    # BASE_URL=https://api.example.com
+    # API_TOKEN=your-secret-token
+    # TIMEOUT=60s
+
+  # ==========================================================================
+  # Production API Examples (with authentication)
+  # ==========================================================================
+
+  prod-get-data:
+    <<: *production
+    method: get
+    path: /data
+    params:
+      - limit=100
+      - offset=0
+    # Authenticated GET request to production API
+
+  prod-create-resource:
+    <<: *production
+    method: post
+    path: /resources
+    json: |
+      {
+        "name": "New Resource",
+        "type": "document",
+        "metadata": {
+          "created_by": "quest-cli",
+          "tags": ["important", "review"]
+        }
+      }
+    # Authenticated POST request with complex JSON
+
+  # ==========================================================================
+  # Advanced Examples
+  # ==========================================================================
+
+  # Multiple headers and query params
+  complex-request:
+    <<: *httpbin
+    method: post
+    path: /post
+    header:
+      - "X-Request-ID: ${REQUEST_ID:-default-id}"
+      - "X-Client-Version: 1.0.0"
+      - "X-Environment: development"
+    params:
+      - debug=true
+      - verbose=true
+    json: |
+      {
+        "action": "process",
+        "data": {
+          "items": [1, 2, 3, 4, 5],
+          "options": {
+            "parallel": true,
+            "timeout": 30
+          }
+        }
+      }
+
+  # Download file with custom output
+  download-example:
+    <<: *httpbin
+    method: get
+    path: /json
+    output: downloaded-data.json
+    compressed: true
+    # Downloads and saves response to file
+
+  # Verbose debugging request
+  debug-request:
+    <<: *httpbin
+    method: post
+    path: /post
+    json: '{"debug": true}'
+    verbose: true
+    include: true
+    # Shows detailed request/response info with headers
+
+  # Request with timeout and retry settings
+  slow-request:
+    <<: *httpbin
+    method: get
+    path: /delay/1
+    timeout: 5s
+    connect_timeout: 2s
+    # Tests connection and request timeouts
+
+  # Insecure HTTPS request (skip TLS verification)
+  insecure-request:
+    method: get
+    url: https://self-signed.badssl.com/
+    insecure: true
+    timeout: 10s
+    # Only use insecure flag for testing/development!
+# ============================================================================
+# Usage Examples
+# ============================================================================
+#
+# Run any quest by name:
+#   quest go get-users
+#   quest go create-post
+#   quest go httpbin-headers
+#
+# Override quest file settings from CLI:
+#   quest go get-users --param _limit=5
+#   quest go create-post --bearer MY_TOKEN
+#   quest go httpbin-post --json '{"override": "data"}'
+#
+# Use environment variables:
+#   quest -e .env go env-example
+#   quest -e .env.production go prod-get-data
+#
+# Combine quest with CLI options:
+#   quest go get-users -p _limit=10 -p _page=2
+#   quest go httpbin-headers -H "X-Extra: value" -v
+#
+# Direct requests (without quest file):
+#   quest get https://jsonplaceholder.typicode.com/users
+#   quest post https://httpbin.org/post --json '{"test": "data"}'
+#   quest get https://api.example.com/data --bearer TOKEN -p limit=100

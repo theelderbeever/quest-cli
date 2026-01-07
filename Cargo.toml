@@ -1,0 +1,36 @@
+[package]
+name = "quest-cli"
+version = "0.1.0"
+edition = "2024"
+description = "A cli for going on http fetch (re)quests. Requests can be templated and aliased for easier use."
+license = "MIT"
+homepage = "https://github.com/theelderbeever/quest-cli"
+repository = "https://github.com/theelderbeever/quest-cli"
+documentation = "https://docs.rs/quest-cli"
+
+[[bin]]
+name = "quest"      # This will be the name of the installed binary
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1.0"
+clap = { version = "4.5", features = ["derive", "env"] }
+colored = "3.0"
+colored_json = "5.0"
+dotenvy = "0.15"
+duration-string = { version = "0.5", features = ["serde"] }
+env_logger = "0.11"
+shellexpand = "3.1"
+glob = "0.3"
+log = "0.4"
+reqwest = { version = "0.13", features = ["blocking", "json", "gzip", "brotli", "deflate", "multipart", "rustls", "query"] }
+secrecy = { version = "0.10", features = ["serde"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde-saphyr = "0.0.13"
+url = { version = "2.5", features = ["serde"] }
+
+[dev-dependencies]
+assert_cmd = "2.0"
+predicates = "3.1"
+tempfile = "3.10"

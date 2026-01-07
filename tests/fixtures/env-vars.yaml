@@ -1,0 +1,13 @@
+quests:
+  with-env-var:
+    method: get
+    url: ${TEST_BASE_URL}/get
+
+  with-env-var-default:
+    method: get
+    url: ${TEST_MISSING_URL:-https://httpbin.org}/status/200
+
+  with-auth-from-env:
+    method: get
+    url: https://httpbin.org/basic-auth/user/pass
+    basic: ${TEST_AUTH_CREDS:-user:pass}
