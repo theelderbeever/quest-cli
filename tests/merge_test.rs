@@ -1,5 +1,6 @@
 use duration_string::DurationString;
-use quest_cli::cli::{AuthOptions, HeaderOptions, RequestOptions, TimeoutOptions};
+use quest_cli::cli::{AuthOptions, BodyOptions, HeaderOptions, RequestOptions, TimeoutOptions};
+use quest_cli::{FormField, StringOrFile};
 use secrecy::{ExposeSecret, SecretString};
 
 // Helper to create SecretString from &str
@@ -224,4 +225,110 @@ fn test_empty_cli_options_preserves_quest() {
         quest_options.headers.user_agent,
         Some("QuestAgent".to_string())
     );
+}
+
+#[test]
+fn test_body_merge_cli_json_overrides_quest_json() {
+    let mut quest_body = BodyOptions {
+        json: Some(StringOrFile::String(r#"{"quest": "data"}"#.to_string())),
+        ..Default::default()
+    };
+
+    let cli_body = BodyOptions {
+        json: Some(StringOrFile::String(r#"{"cli": "override"}"#.to_string())),
+        ..Default::default()
+    };
+
+    quest_body.merge_with(&cli_body);
+
+    match quest_body.json {
+        Some(StringOrFile::String(s)) => assert_eq!(s, r#"{"cli": "override"}"#),
+        _ => panic!("Expected String variant"),
+    }
+}
+
+#[test]
+fn test_body_merge_cli_empty_preserves_quest() {
+    let mut quest_body = BodyOptions {
+        json: Some(StringOrFile::String(r#"{"quest": "data"}"#.to_string())),
+        ..Default::default()
+    };
+
+    let cli_body = BodyOptions::default();
+
+    quest_body.merge_with(&cli_body);
+
+    match quest_body.json {
+        Some(StringOrFile::String(s)) => assert_eq!(s, r#"{"quest": "data"}"#),
+        _ => panic!("Expected String variant"),
+    }
+}
+
+#[test]
+fn test_body_merge_cli_form_overrides_quest_json() {
+    let mut quest_body = BodyOptions {
+        json: Some(StringOrFile::String(r#"{"quest": "data"}"#.to_string())),
+        ..Default::default()
+    };
+
+    let cli_body = BodyOptions {
+        form: vec![FormField {
+            name: "key".to_string(),
+            value: StringOrFile::String("value".to_string()),
+        }],
+        ..Default::default()
+    };
+
+    quest_body.merge_with(&cli_body);
+
+    assert!(quest_body.json.is_none());
+    assert_eq!(quest_body.form.len(), 1);
+    assert_eq!(quest_body.form[0].name, "key");
+}
+
+#[test]
+fn test_body_merge_cli_raw_overrides_quest_json() {
+    let mut quest_body = BodyOptions {
+        json: Some(StringOrFile::String(r#"{"quest": "data"}"#.to_string())),
+        ..Default::default()
+    };
+
+    let cli_body = BodyOptions {
+        raw: Some(StringOrFile::String("raw data".to_string())),
+        ..Default::default()
+    };
+
+    quest_body.merge_with(&cli_body);
+
+    assert!(quest_body.json.is_none());
+    match quest_body.raw {
+        Some(StringOrFile::String(s)) => assert_eq!(s, "raw data"),
+        _ => panic!("Expected raw String variant"),
+    }
+}
+
+#[test]
+fn test_request_options_merge_includes_body() {
+    let mut quest_options = RequestOptions {
+        body: BodyOptions {
+            json: Some(StringOrFile::String(r#"{"quest": "data"}"#.to_string())),
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+
+    let cli_options = RequestOptions {
+        body: BodyOptions {
+            json: Some(StringOrFile::String(r#"{"cli": "override"}"#.to_string())),
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+
+    quest_options.merge_with(&cli_options);
+
+    match quest_options.body.json {
+        Some(StringOrFile::String(s)) => assert_eq!(s, r#"{"cli": "override"}"#),
+        _ => panic!("Expected String variant"),
+    }
 }

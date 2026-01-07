@@ -159,18 +159,18 @@ impl QuestCli {
                 };
                 Self::execute_quest_command(options, quest)
             }
-            Command::Post { url, body } => {
+            Command::Post { url } => {
                 let quest = QuestCommand::Post {
                     url_spec: QuestUrl::Direct { url },
-                    body,
+                    body: BodyOptions::default(),
                     options: RequestOptions::default(),
                 };
                 Self::execute_quest_command(options, quest)
             }
-            Command::Put { url, body } => {
+            Command::Put { url } => {
                 let quest = QuestCommand::Put {
                     url_spec: QuestUrl::Direct { url },
-                    body,
+                    body: BodyOptions::default(),
                     options: RequestOptions::default(),
                 };
                 Self::execute_quest_command(options, quest)
@@ -182,10 +182,10 @@ impl QuestCli {
                 };
                 Self::execute_quest_command(options, quest)
             }
-            Command::Patch { url, body } => {
+            Command::Patch { url } => {
                 let quest = QuestCommand::Patch {
                     url_spec: QuestUrl::Direct { url },
-                    body,
+                    body: BodyOptions::default(),
                     options: RequestOptions::default(),
                 };
                 Self::execute_quest_command(options, quest)
@@ -300,41 +300,47 @@ impl QuestCli {
     }
 
     fn execute_quest_command(cli_options: RequestOptions, quest: QuestCommand) -> Result<()> {
-        // 1. Extract quest file options and merge with CLI options
-        let mut quest_options = match &quest {
-            QuestCommand::Get { options, .. } => options,
-            QuestCommand::Post { options, .. } => options,
-            QuestCommand::Put { options, .. } => options,
-            QuestCommand::Delete { options, .. } => options,
-            QuestCommand::Patch { options, .. } => options,
+        // 1. Extract quest file options and body, transfer body into options
+        let (mut quest_options, quest_body) = match &quest {
+            QuestCommand::Get { options, .. } => (options.clone(), None),
+            QuestCommand::Post { options, body, .. } => (options.clone(), Some(body)),
+            QuestCommand::Put { options, body, .. } => (options.clone(), Some(body)),
+            QuestCommand::Delete { options, .. } => (options.clone(), None),
+            QuestCommand::Patch { options, body, .. } => (options.clone(), Some(body)),
+        };
+
+        // Transfer quest body into quest_options before merge
+        if let Some(body) = quest_body {
+            quest_options.body = body.clone();
         }
-        .clone();
+
+        // 2. Merge quest options (including body) with CLI options
         quest_options.merge_with(&cli_options);
 
-        // 2. Build the client with merged options
+        // 3. Build the client with merged options
         let client = QuestClientBuilder::new().apply(&quest_options)?.build()?;
 
-        // 3. Build the request based on the quest command and capture details for verbose output
-        let (request_builder, body_options, method, url) = match &quest {
+        // 4. Build the request based on the quest command
+        let (request_builder, method, url) = match &quest {
             QuestCommand::Get { url_spec, .. } => {
                 let url = url_spec.to_url()?;
-                (client.get(url.as_str()), None, "GET", url)
+                (client.get(url.as_str()), "GET", url)
             }
-            QuestCommand::Post { url_spec, body, .. } => {
+            QuestCommand::Post { url_spec, .. } => {
                 let url = url_spec.to_url()?;
-                (client.post(url.as_str()), Some(body.clone()), "POST", url)
+                (client.post(url.as_str()), "POST", url)
             }
-            QuestCommand::Put { url_spec, body, .. } => {
+            QuestCommand::Put { url_spec, .. } => {
                 let url = url_spec.to_url()?;
-                (client.put(url.as_str()), Some(body.clone()), "PUT", url)
+                (client.put(url.as_str()), "PUT", url)
             }
             QuestCommand::Delete { url_spec, .. } => {
                 let url = url_spec.to_url()?;
-                (client.delete(url.as_str()), None, "DELETE", url)
+                (client.delete(url.as_str()), "DELETE", url)
             }
-            QuestCommand::Patch { url_spec, body, .. } => {
+            QuestCommand::Patch { url_spec, .. } => {
                 let url = url_spec.to_url()?;
-                (client.patch(url.as_str()), Some(body.clone()), "PATCH", url)
+                (client.patch(url.as_str()), "PATCH", url)
             }
         };
 
@@ -348,14 +354,8 @@ impl QuestCli {
             )?;
         }
 
-        // 4. Apply request options (use merged options)
-        let mut request =
-            QuestRequestBuilder::from_request(request_builder).apply(&quest_options)?;
-
-        // 5. Apply body options if present
-        if let Some(body) = body_options {
-            request = request.apply(&body)?;
-        }
+        // 5. Apply merged options (including body) to request
+        let request = QuestRequestBuilder::from_request(request_builder).apply(&quest_options)?;
 
         // 6. Send the request
         let response = request.send()?;
@@ -438,21 +438,15 @@ pub enum Command {
     },
     Post {
         url: Url,
-        #[clap(flatten)]
-        body: BodyOptions,
     },
     Put {
         url: Url,
-        #[clap(flatten)]
-        body: BodyOptions,
     },
     Delete {
         url: Url,
     },
     Patch {
         url: Url,
-        #[clap(flatten)]
-        body: BodyOptions,
     },
     /// Run a named quest from a quest file
     Go {
@@ -491,6 +485,9 @@ pub struct RequestOptions {
     #[serde(flatten)]
     #[clap(flatten)]
     pub params: ParamOptions,
+    #[serde(flatten)]
+    #[clap(flatten)]
+    pub body: BodyOptions,
     #[serde(flatten)]
     #[clap(flatten)]
     pub timeouts: TimeoutOptions,
@@ -591,6 +588,7 @@ pub struct BodyOptions {
         short = 'j',
         long = "json",
         group = "body",
+        global = true,
         help = "Send data as JSON (auto sets Content-Type)",
         value_hint = clap::ValueHint::FilePath
     )]
@@ -599,12 +597,14 @@ pub struct BodyOptions {
         short = 'F',
         long = "form",
         group = "body",
+        global = true,
         help = "Form data (repeatable)"
     )]
     pub form: Vec<FormField>,
     #[arg(
         long = "raw",
         group = "body",
+        global = true,
         help = "Send raw data without processing",
         value_hint = clap::ValueHint::FilePath
     )]
@@ -612,6 +612,7 @@ pub struct BodyOptions {
     #[arg(
         long = "binary",
         group = "body",
+        global = true,
         help = "Send binary data",
         value_hint = clap::ValueHint::FilePath
     )]
@@ -725,6 +726,7 @@ impl RequestOptions {
         self.authorization.merge_with(&cli_options.authorization);
         self.headers.merge_with(&cli_options.headers);
         self.params.merge_with(&cli_options.params);
+        self.body.merge_with(&cli_options.body);
         self.timeouts.merge_with(&cli_options.timeouts);
         self.redirects.merge_with(&cli_options.redirects);
         self.tls.merge_with(&cli_options.tls);
@@ -860,5 +862,22 @@ impl CompressionOptions {
         if cli.compressed {
             self.compressed = cli.compressed;
         }
+    }
+}
+
+impl BodyOptions {
+    pub fn merge_with(&mut self, cli: &BodyOptions) {
+        // Body options are mutually exclusive (clap group)
+        // If CLI provides any body option, it completely replaces quest body
+        if cli.json.is_some() {
+            *self = cli.clone();
+        } else if !cli.form.is_empty() {
+            *self = cli.clone();
+        } else if cli.raw.is_some() {
+            *self = cli.clone();
+        } else if cli.binary.is_some() {
+            *self = cli.clone();
+        }
+        // If CLI has no body options, keep quest body unchanged
     }
 }
