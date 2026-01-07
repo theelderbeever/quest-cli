@@ -230,6 +230,7 @@ impl ApplyOptions<RequestBuilder> for RequestOptions {
         let builder = self.authorization.apply(builder)?;
         let builder = self.headers.apply(builder)?;
         let builder = self.params.apply(builder)?;
+        let builder = self.body.apply(builder)?;
         let builder = self.timeouts.apply(builder)?;
         self.compression.apply(builder)
     }
