@@ -1,4 +1,4 @@
-use std::{io::Write, time::Duration};
+use std::io::Write;
 
 use anyhow::Result;
 use clap::Parser;
@@ -10,7 +10,7 @@ use quest_cli::QuestCli;
 fn main() -> Result<()> {
     let name = env!("CARGO_PKG_NAME");
     let current = env!("CARGO_PKG_VERSION");
-    let informer = update_informer::new(registry::Crates, name, current).interval(Duration::ZERO);
+    let informer = update_informer::new(registry::Crates, name, current);
     let cli = QuestCli::parse().init_logging();
 
     let result = cli.execute();
