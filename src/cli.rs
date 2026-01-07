@@ -869,13 +869,7 @@ impl BodyOptions {
     pub fn merge_with(&mut self, cli: &BodyOptions) {
         // Body options are mutually exclusive (clap group)
         // If CLI provides any body option, it completely replaces quest body
-        if cli.json.is_some() {
-            *self = cli.clone();
-        } else if !cli.form.is_empty() {
-            *self = cli.clone();
-        } else if cli.raw.is_some() {
-            *self = cli.clone();
-        } else if cli.binary.is_some() {
+        if cli.json.is_some() | !cli.form.is_empty() | cli.raw.is_some() | cli.binary.is_some() {
             *self = cli.clone();
         }
         // If CLI has no body options, keep quest body unchanged
