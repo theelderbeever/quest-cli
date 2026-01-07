@@ -1,6 +1,6 @@
 [package]
 name = "quest-cli"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2024"
 description = "A cli for going on http fetch (re)quests. Requests can be templated and aliased for easier use."
 license = "MIT"
