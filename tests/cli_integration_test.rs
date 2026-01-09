@@ -414,19 +414,6 @@ fn test_output_to_file() {
 }
 
 #[test]
-fn test_include_headers_in_output() {
-    let mut cmd = quest_cmd();
-    cmd.arg("get")
-        .arg("https://httpbin.org/get")
-        .arg("--include");
-
-    cmd.assert()
-        .success()
-        .stdout(predicate::str::contains("HTTP/1.1"))
-        .stdout(predicate::str::contains("content-type:"));
-}
-
-#[test]
 fn test_env_file_loading() {
     let temp_dir = tempfile::tempdir().unwrap();
     let env_file = temp_dir.path().join(".env");

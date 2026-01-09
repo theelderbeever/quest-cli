@@ -333,7 +333,6 @@ quests:
     path: /post
     json: '{"debug": true}'
     verbose: true
-    include: true
     # Shows detailed request/response info with headers
 
   # Request with timeout and retry settings
