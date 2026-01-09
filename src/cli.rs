@@ -372,70 +372,61 @@ impl QuestCli {
     ) -> Result<()> {
         use std::io::Write;
 
-        // Prepare output content
-        let mut output_parts = Vec::new();
-
-        // Include headers if requested
-        if output_opts.include {
-            let status_line = format!(
-                "HTTP/1.1 {} {}\n",
-                response.status().as_u16(),
-                response.status().canonical_reason().unwrap_or("")
-            );
-            output_parts.push(status_line);
-
-            for (name, value) in response.headers() {
-                if let Ok(val_str) = value.to_str() {
-                    output_parts.push(format!("{}: {}\n", name, val_str));
-                }
-            }
-            output_parts.push("\n".to_string());
-        }
-
         if output_opts.verbose {
             Self::log_response_verbose(&response)?;
         }
 
-        // Get response body
-        let body_text = if response
-            .headers()
-            .get("content-type")
-            .and_then(|v| v.to_str().ok())
-            .map(|ct| ct.contains("application/json") || ct.contains("application/vnd.api+json"))
-            .unwrap_or(false)
-            && !output_opts.simple
+        let content = response.bytes()?;
+
+        let output = if !output_opts.simple
             && output_opts.output.is_none()
+            && let Ok(json) = serde_json::from_slice::<serde_json::Value>(&content)
+            && let Ok(formatted) = colored_json::to_colored_json_auto(&json)
         {
-            // Parse as JSON and pretty-print with colors
-            let json_value = response.json::<serde_json::Value>()?;
-            colored_json::to_colored_json_auto(&json_value)?
+            Output::Text(formatted)
+        } else if let Ok(text) = String::from_utf8(content.to_vec()) {
+            Output::Text(text)
         } else {
-            // Not JSON or unknown content-type or writing to a file, just get as text
-            response.text()?
+            Output::Bytes(content.to_vec())
         };
 
-        output_parts.push(body_text);
-
-        let full_output = output_parts.join("");
-
-        // Write to file or stdout
-        if let Some(output_file) = &output_opts.output {
-            let mut file = std::fs::File::create(output_file).with_context(|| {
-                format!("Failed to create output file: {}", output_file.display())
-            })?;
-            file.write_all(full_output.as_bytes())?;
-        } else {
-            let mut stdout = std::io::stdout().lock();
-            writeln!(stdout, "{full_output}").or_else(|e| {
-                if e.kind() == std::io::ErrorKind::BrokenPipe {
-                    Ok(())
-                } else {
-                    Err(e)
-                }
-            })?
+        match (output, &output_opts.output) {
+            (output, Some(path)) => {
+                let bytes = output.into_bytes();
+                let mut file = std::fs::File::create(path)
+                    .with_context(|| format!("Failed to create output file: {}", path.display()))?;
+                file.write_all(&bytes)?;
+            }
+            (Output::Text(s), None) => {
+                let mut stdout = std::io::stdout().lock();
+                writeln!(stdout, "{s}").or_else(|e| {
+                    if e.kind() == std::io::ErrorKind::BrokenPipe {
+                        Ok(())
+                    } else {
+                        Err(e)
+                    }
+                })?
+            }
+            (Output::Bytes(v), None) => {
+                anyhow::bail!("[Binary data: {} bytes - use --output to save]", v.len());
+            }
         }
 
         Ok(())
+    }
+}
+
+enum Output {
+    Text(String),
+    Bytes(Vec<u8>),
+}
+
+impl Output {
+    pub fn into_bytes(self) -> Vec<u8> {
+        match self {
+            Self::Bytes(v) => v,
+            Self::Text(s) => s.into_bytes(),
+        }
     }
 }
 
@@ -694,13 +685,7 @@ pub struct OutputOptions {
         help = "Write output to file instead of stdout"
     )]
     pub output: Option<PathBuf>,
-    #[arg(
-        short = 'i',
-        long = "include",
-        global = true,
-        help = "Include response headers in output"
-    )]
-    pub include: bool,
+
     #[arg(
         short,
         long = "verbose",
@@ -898,9 +883,6 @@ impl OutputOptions {
     pub fn merge_with(&mut self, cli: &OutputOptions) -> Result<&Self> {
         if cli.output.is_some() {
             self.output = cli.output.clone();
-        }
-        if cli.include {
-            self.include = cli.include;
         }
         if cli.verbose {
             self.verbose = cli.verbose;

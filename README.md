@@ -315,12 +315,6 @@ quest get https://api.example.com/data -o response.json
 quest get https://api.example.com/data --output response.json
 ```
 
-**Include Response Headers:**
-```sh
-quest get https://api.example.com/data -i
-quest get https://api.example.com/data --include
-```
-
 **Request Compressed Response:**
 ```sh
 quest get https://api.example.com/data --compressed
@@ -461,7 +455,6 @@ quests:
 
 **Output:**
 - `output`: Output file path
-- `include`: Include response headers (boolean)
 - `compressed`: Request compressed response (boolean)
 - `simple`: Simple output without color (boolean)
 - `verbose`: Verbose output (boolean)
