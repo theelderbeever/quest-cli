@@ -404,12 +404,13 @@ impl QuestCli {
             .map(|ct| ct.contains("application/json") || ct.contains("application/vnd.api+json"))
             .unwrap_or(false)
             && !output_opts.simple
+            && output_opts.output.is_none()
         {
             // Parse as JSON and pretty-print with colors
             let json_value = response.json::<serde_json::Value>()?;
             colored_json::to_colored_json_auto(&json_value)?
         } else {
-            // Not JSON or unknown content-type, just get as text
+            // Not JSON or unknown content-type or writing to a file, just get as text
             response.text()?
         };
 
@@ -424,7 +425,14 @@ impl QuestCli {
             })?;
             file.write_all(full_output.as_bytes())?;
         } else {
-            println!("{full_output}");
+            let mut stdout = std::io::stdout().lock();
+            writeln!(stdout, "{full_output}").or_else(|e| {
+                if e.kind() == std::io::ErrorKind::BrokenPipe {
+                    Ok(())
+                } else {
+                    Err(e)
+                }
+            })?
         }
 
         Ok(())
